@@ -35,26 +35,17 @@ async def _post_message(client: httpx.AsyncClient, recipient_id: str, text: str)
     if not response.is_success:
         logger.error(
             "Facebook Send API error | recipient_id=%s status=%s body=%s",
-            recipient_id,
-            response.status_code,
-            response.text,
+            recipient_id, response.status_code, response.text,
         )
         response.raise_for_status()
 
 
 async def send_message(recipient_id: str, text: str) -> None:
-    """
-    Send a text message to a Facebook Messenger user.
-    Logs success or failure without propagating exceptions to the caller.
-    """
     logger.info("Sending message to Facebook | recipient_id=%s", recipient_id)
 
     try:
         async with httpx.AsyncClient() as client:
             await _post_message(client, recipient_id, text)
         logger.info("Message sent successfully | recipient_id=%s", recipient_id)
-
     except Exception:
-        logger.exception(
-            "Failed to send message via Facebook Send API | recipient_id=%s", recipient_id
-        )
+        logger.exception("Failed to send message via Facebook | recipient_id=%s", recipient_id)

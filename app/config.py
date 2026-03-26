@@ -8,35 +8,27 @@ class Settings(BaseSettings):
         case_sensitive=False,
     )
 
-    # Server
     app_host: str = "0.0.0.0"
-    app_port: int = 8000
+    app_port: int = 8383
 
-    # Facebook
     fb_verify_token: str
     fb_page_access_token: str
     fb_graph_api_version: str = "v21.0"
 
-    # AI Provider: "openai" | "gemini" | "ollama"
-    ai_provider: str = "ollama"
-    ai_model: str = "llama3.2"
+    gemini_api_key: str
+    gemini_model: str = "gemma-3-27b-it"
     ai_timeout: int = 30
     ai_system_prompt: str = (
         "Bạn là trợ lý ảo của Luniva Studio. "
         "Trả lời ngắn gọn, thân thiện, bằng tiếng Việt."
     )
 
-    # OpenAI
-    openai_api_key: str = ""
-    openai_base_url: str = "https://api.openai.com/v1"
+    telegram_bot_token: str = ""
+    telegram_chat_id: str = ""
 
-    # Gemini
-    gemini_api_key: str = ""
+    database_path: str = "data/conversations.db"
+    vector_db_path: str = "data/vectordb"
 
-    # Ollama
-    ollama_base_url: str = "http://localhost:11434"
-
-    # Logging
     log_level: str = "INFO"
 
     @property
