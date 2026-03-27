@@ -4,6 +4,7 @@ from fastapi import FastAPI
 
 from app.config import settings
 from app.db.engine import init_db
+from app.routes.test_chat import router as test_router
 from app.routes.webhook import router as webhook_router
 from app.utils.logging import RequestTimingMiddleware, get_logger, setup_logging
 from app.vectordb.store import load_documents
@@ -32,3 +33,4 @@ app = FastAPI(
 
 app.add_middleware(RequestTimingMiddleware)
 app.include_router(webhook_router)
+app.include_router(test_router)

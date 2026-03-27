@@ -1,18 +1,30 @@
 [
   {
-    "question": "Chính sách bảo hành như thế nào?",
-    "answer": "Luniva Studio bảo hành sản phẩm trong vòng 30 ngày kể từ ngày bàn giao. Bảo hành bao gồm: chỉnh sửa lại nội dung theo yêu cầu ban đầu, sửa lỗi kỹ thuật (màu sắc, âm thanh, định dạng). Không bao gồm thay đổi concept hoặc yêu cầu mới ngoài brief."
+    "question": "Chính sách đổi trả như thế nào?",
+    "answer": "Luniva Studio hỗ trợ đổi trả trong vòng 7 ngày kể từ ngày nhận hàng với điều kiện: sản phẩm chưa qua sử dụng, còn nguyên tem nhãn, không bị bẩn hay trầy xước. Đổi size miễn phí 1 lần. Hoàn tiền nếu sản phẩm bị lỗi do nhà sản xuất."
   },
   {
-    "question": "Tôi muốn yêu cầu chỉnh sửa sau khi nhận file?",
-    "answer": "Bạn được chỉnh sửa miễn phí 2 lần trong vòng 30 ngày sau bàn giao. Từ lần chỉnh sửa thứ 3 trở đi sẽ tính phí bổ sung tùy theo khối lượng công việc. Vui lòng gửi yêu cầu chỉnh sửa qua email hoặc nhắn tin trực tiếp."
+    "question": "Tôi mua giày bị lỗi (bong đế, đứt quai, lệch gót) thì xử lý thế nào?",
+    "answer": "Nếu giày bị lỗi kỹ thuật trong vòng 30 ngày (bong đế, đứt quai, lệch gót do lỗi sản xuất), Luniva Studio sẽ đổi sản phẩm mới hoặc hoàn tiền 100% miễn phí. Vui lòng chụp ảnh lỗi và nhắn tin kèm mã đơn hàng để được hỗ trợ nhanh nhất."
   },
   {
-    "question": "File bàn giao bị lỗi thì sao?",
-    "answer": "Nếu file bàn giao bị lỗi kỹ thuật (không mở được, sai định dạng, mất âm thanh), Luniva Studio sẽ gửi lại file trong vòng 24 giờ làm việc hoàn toàn miễn phí."
+    "question": "Tôi mua nhầm size, đổi được không?",
+    "answer": "Được. Khách hàng được đổi size miễn phí trong vòng 7 ngày nếu sản phẩm chưa qua sử dụng và còn nguyên hộp. Phí ship đổi hàng do khách chịu (trừ trường hợp shop giao sai size). Nếu size mới hết hàng, shop sẽ hoàn tiền hoặc cho đổi sang mẫu khác cùng giá."
   },
   {
-    "question": "Tôi có được giữ bản quyền sản phẩm không?",
-    "answer": "Sau khi thanh toán đầy đủ, khách hàng sở hữu toàn bộ bản quyền sử dụng sản phẩm. Luniva Studio giữ quyền sử dụng sản phẩm cho mục đích portfolio trừ khi có thỏa thuận bảo mật riêng."
+    "question": "Tôi muốn trả hàng và hoàn tiền?",
+    "answer": "Shop hỗ trợ hoàn tiền trong các trường hợp: sản phẩm bị lỗi do sản xuất, shop giao sai mẫu/màu/size so với đơn đặt. Thời gian hoàn tiền 1-3 ngày làm việc qua chuyển khoản hoặc ví điện tử. Không hoàn tiền với lý do đổi ý không muốn mua nữa sau khi đã sử dụng."
+  },
+  {
+    "question": "Giày bị ố vàng, phai màu sau khi dùng thì có được đổi không?",
+    "answer": "Ố vàng hoặc phai màu do quá trình sử dụng, tiếp xúc nước hoặc hóa chất không thuộc phạm vi bảo hành. Shop có thể tư vấn cách vệ sinh và bảo quản giày để giữ màu lâu hơn. Nếu phai màu xảy ra ngay trong 7 ngày đầu do lỗi sản xuất, shop sẽ đổi hàng mới."
+  },
+  {
+    "question": "Đặt hàng online bị giao sai mẫu, sai màu thì sao?",
+    "answer": "Nếu shop giao sai mẫu hoặc sai màu so với đơn đặt, khách hàng sẽ được đổi hàng đúng miễn phí toàn bộ phí vận chuyển. Vui lòng chụp ảnh sản phẩm nhận được và nhắn tin kèm mã đơn hàng trong vòng 48 giờ sau khi nhận."
+  },
+  {
+    "question": "Quy trình đổi trả online như thế nào?",
+    "answer": "Bước 1: Nhắn tin cho shop kèm ảnh sản phẩm và mã đơn hàng. Bước 2: Shop xác nhận và gửi địa chỉ nhận hàng đổi trả. Bước 3: Khách gửi hàng về shop. Bước 4: Shop kiểm tra và gửi hàng mới hoặc hoàn tiền trong 1-3 ngày làm việc."
   }
 ]
