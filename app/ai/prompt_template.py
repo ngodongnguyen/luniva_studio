@@ -1,3 +1,16 @@
+DAT_HANG_EXTRACT_PROMPT = """Từ lịch sử hội thoại và tin nhắn hiện tại, hãy trích xuất thông tin đặt hàng của khách.
+
+{history_block}Tin nhắn hiện tại: "{message}"
+
+Trả về JSON với các trường sau:
+- "ten": tên người nhận (null nếu chưa có)
+- "sdt": số điện thoại (null nếu chưa có)
+- "dia_chi": địa chỉ giao hàng (null nếu chưa có)
+- "luu_y": lưu ý thêm (null nếu không có)
+- "muon_gap_tu_van": true nếu khách muốn gặp/nói chuyện với tư vấn viên/nhân viên, false nếu không
+
+Chỉ trả về JSON, không giải thích thêm."""
+
 CLASSIFICATION_PROMPT = """Phân loại tin nhắn sau vào MỘT trong hai nhóm:
 - "general": chào hỏi, tán gẫu, câu hỏi chung chung, không liên quan sản phẩm/dịch vụ
 - "indomain": liên quan sản phẩm, dịch vụ, tư vấn, bảo hành, đặt hàng, giá cả
