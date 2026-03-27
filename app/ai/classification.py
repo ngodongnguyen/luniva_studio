@@ -1,23 +1,16 @@
 import json
 
 from app.ai.gemini import generate
+from app.ai.prompt_template import CLASSIFICATION_PROMPT
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
-
-PROMPT = """Phân loại tin nhắn sau vào MỘT trong hai nhóm:
-- "general": chào hỏi, tán gẫu, câu hỏi chung chung, không liên quan sản phẩm/dịch vụ
-- "indomain": liên quan sản phẩm, dịch vụ, tư vấn, bảo hành, đặt hàng, giá cả
-
-Tin nhắn: "{message}"
-
-Chỉ trả về JSON: {{"classification": "general"}} hoặc {{"classification": "indomain"}}"""
 
 VALID = {"general", "indomain"}
 
 
 async def classify(message: str) -> str:
-    raw = await generate(PROMPT.format(message=message), temperature=0.1, max_tokens=64)
+    raw = await generate(CLASSIFICATION_PROMPT.format(message=message), temperature=0.1, max_tokens=64)
 
     try:
         result = json.loads(raw).get("classification", "general")

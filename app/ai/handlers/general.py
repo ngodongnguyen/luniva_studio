@@ -1,6 +1,6 @@
 from app.ai.gemini import generate
-from app.config import settings
+from app.ai.prompt_template import GENERAL_SYSTEM_PROMPT
 
 
 async def handle(message: str, sender_id: str) -> str:
-    return await generate(message, system_prompt=settings.ai_system_prompt)
+    return await generate(message, system_prompt=GENERAL_SYSTEM_PROMPT)

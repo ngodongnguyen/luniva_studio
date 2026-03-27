@@ -18,10 +18,7 @@ class Settings(BaseSettings):
     gemini_api_key: str
     gemini_model: str = "gemma-3-27b-it"
     ai_timeout: int = 30
-    ai_system_prompt: str = (
-        "Bạn là trợ lý ảo của Luniva Studio. "
-        "Trả lời ngắn gọn, thân thiện, bằng tiếng Việt."
-    )
+    ai_system_prompt: str = ""
 
     telegram_bot_token: str = ""
     telegram_chat_id: str = ""

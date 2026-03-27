@@ -2,19 +2,13 @@ import json
 from pathlib import Path
 
 from app.ai.gemini import generate
+from app.ai.prompt_template import BAO_HANH_SYSTEM_PROMPT
 from app.services.telegram import send_notification
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
 _qa_data: list[dict] = []
-
-SYSTEM_PROMPT = (
-    "Bạn là nhân viên bảo hành của Luniva Studio. "
-    "Dựa vào bộ Q&A dưới đây để trả lời khách hàng. "
-    "Trả lời ngắn gọn, chuyên nghiệp, bằng tiếng Việt.\n\n"
-    "Q&A tham khảo:\n{qa_text}"
-)
 
 
 def _load_qa() -> None:
@@ -32,7 +26,7 @@ async def handle(message: str, sender_id: str) -> str:
     qa_text = "\n".join(
         f"Q: {item['question']}\nA: {item['answer']}" for item in _qa_data
     )
-    system = SYSTEM_PROMPT.format(qa_text=qa_text or "Chưa có dữ liệu Q&A.")
+    system = BAO_HANH_SYSTEM_PROMPT.format(qa_text=qa_text or "Chưa có dữ liệu Q&A.")
     response = await generate(message, system_prompt=system)
 
     await send_notification(
