@@ -1,4 +1,4 @@
-from app.ai.gemini import generate
+from app.ai.llm import generate
 from app.ai.prompt_template import GENERAL_SYSTEM_PROMPT
 
 

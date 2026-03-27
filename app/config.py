@@ -15,8 +15,14 @@ class Settings(BaseSettings):
     fb_page_access_token: str
     fb_graph_api_version: str = "v21.0"
 
-    gemini_api_key: str
-    gemini_model: str = "gemma-3-27b-it"
+    ai_provider: str = "gemini"  # "gemini" hoặc "openai"
+
+    gemini_api_key: str = ""
+    gemini_model: str = "gemini-2.0-flash"
+
+    openai_api_key: str = ""
+    openai_model: str = "gpt-4o-mini"
+
     ai_timeout: int = 30
     ai_system_prompt: str = ""
 

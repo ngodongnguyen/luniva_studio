@@ -1,7 +1,7 @@
 import json
 from pathlib import Path
 
-from app.ai.gemini import generate
+from app.ai.llm import generate
 from app.ai.history import format_history
 from app.ai.prompt_template import BAO_HANH_SYSTEM_PROMPT
 from app.services.telegram import send_notification

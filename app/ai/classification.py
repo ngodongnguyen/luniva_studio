@@ -1,6 +1,6 @@
 import json
 
-from app.ai.gemini import generate
+from app.ai.llm import generate
 from app.ai.history import format_history
 from app.ai.prompt_template import CLASSIFICATION_PROMPT
 from app.utils.logging import get_logger
