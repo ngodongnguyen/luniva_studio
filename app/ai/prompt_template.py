@@ -12,8 +12,8 @@ Trả về JSON với các trường sau:
 Chỉ trả về JSON, không giải thích thêm."""
 
 CLASSIFICATION_PROMPT = """Phân loại tin nhắn sau vào MỘT trong hai nhóm:
-- "general": chào hỏi, tán gẫu, câu hỏi chung chung, không liên quan sản phẩm/dịch vụ
-- "indomain": liên quan sản phẩm, dịch vụ, tư vấn, bảo hành, đặt hàng, giá cả
+- "general": chào hỏi, tán gẫu, câu hỏi chung chung, không liên quan đến giày dép
+- "indomain": liên quan đến giày dép, dép, sandal, boots, sneaker, size giày, chất liệu, giá giày, đặt hàng giày, đổi trả giày, bảo hành giày
 
 {history_block}Tin nhắn hiện tại: "{message}"
 
