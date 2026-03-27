@@ -5,7 +5,7 @@ SENDER_ID = "test_user"
 
 
 def chat(message: str) -> None:
-    response = httpx.post(BASE_URL, json={"sender_id": SENDER_ID, "message": message})
+    response = httpx.post(BASE_URL, json={"sender_id": SENDER_ID, "message": message}, timeout=60)
     data = response.json()
     print(f"\n[{data['classification']}] intent={data['intent']}")
     print(f"Bot: {data['response']}")
