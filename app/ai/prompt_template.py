@@ -1,3 +1,10 @@
+CONFIRM_ORDER_PROMPT = """Khách hàng vừa được hiển thị thông tin đơn hàng và được hỏi xác nhận.
+Tin nhắn của khách: "{message}"
+
+Khách có đồng ý xác nhận đặt hàng không?
+Trả về JSON: {{"confirmed": true}} hoặc {{"confirmed": false}}
+Chỉ trả về JSON, không giải thích."""
+
 DAT_HANG_EXTRACT_PROMPT = """Từ lịch sử hội thoại và tin nhắn hiện tại, hãy trích xuất thông tin đặt hàng của khách.
 
 {history_block}Tin nhắn hiện tại: "{message}"

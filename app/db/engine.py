@@ -68,6 +68,39 @@ async def init_db() -> None:
     logger.info("Database initialized | path=%s", settings.database_path)
 
 
+async def lookup_product_price(ten_sp: str, mau: str | None, size: str | None) -> float | None:
+    """Tìm giá sản phẩm trong bảng products. Trả về None nếu không tìm thấy."""
+    async with aiosqlite.connect(settings.database_path) as db:
+        # Tìm chính xác tên + màu + size
+        async with db.execute(
+            "SELECT gia FROM products WHERE LOWER(ten_sp) LIKE LOWER(?) AND LOWER(mau) = LOWER(?) AND LOWER(size) = LOWER(?) LIMIT 1",
+            (f"%{ten_sp}%", mau or "", size or ""),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return row[0]
+
+        # Fallback: tìm theo tên + size
+        async with db.execute(
+            "SELECT gia FROM products WHERE LOWER(ten_sp) LIKE LOWER(?) AND LOWER(size) = LOWER(?) LIMIT 1",
+            (f"%{ten_sp}%", size or ""),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return row[0]
+
+        # Fallback: tìm theo tên sản phẩm
+        async with db.execute(
+            "SELECT gia FROM products WHERE LOWER(ten_sp) LIKE LOWER(?) LIMIT 1",
+            (f"%{ten_sp}%",),
+        ) as cursor:
+            row = await cursor.fetchone()
+        if row:
+            return row[0]
+
+    return None
+
+
 async def get_or_create_customer(ten: str, sdt: str, dia_chi: str) -> int:
     async with aiosqlite.connect(settings.database_path) as db:
         async with db.execute(
