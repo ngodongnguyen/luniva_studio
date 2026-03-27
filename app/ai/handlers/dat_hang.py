@@ -3,6 +3,7 @@ import json
 from app.ai.llm import generate
 from app.ai.history import format_history
 from app.ai.prompt_template import DAT_HANG_EXTRACT_PROMPT
+from app.db.engine import save_order
 from app.services.telegram import send_notification
 from app.utils.logging import get_logger
 
@@ -51,8 +52,15 @@ async def handle(message: str, sender_id: str, history: list[dict]) -> str:
             f"**{missing_text}** nhé!"
         )
 
-    # Đủ thông tin → notify Telegram và xác nhận
+    # Đủ thông tin → lưu DB, notify Telegram và xác nhận
     luu_y = info.get("luu_y") or "Không có"
+    await save_order(
+        sender_id=sender_id,
+        ten=info["ten"],
+        sdt=info["sdt"],
+        dia_chi=info["dia_chi"],
+        luu_y=info.get("luu_y"),
+    )
     await send_notification(
         f"🛒 <b>Đơn hàng mới</b>\n"
         f"👤 Sender: <code>{sender_id}</code>\n"
