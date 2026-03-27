@@ -1,398 +1,278 @@
-# Facebook Messenger Webhook Service
+# Luniva Studio — Facebook Messenger Chatbot
 
-Service Python/FastAPI nhận webhook từ Facebook Messenger, gọi chatbot backend, và gửi câu trả lời về cho người dùng.
+Chatbot tự động cho shop giày nữ **Luniva Studio**, tích hợp Facebook Messenger. Tự động phân loại tin nhắn, tư vấn sản phẩm, xử lý đơn hàng, hỗ trợ bảo hành và gửi thông báo qua Telegram.
 
 ---
 
 ## Cấu trúc project
 
 ```
-fb-webhook-test/
 ├── app/
-│   ├── main.py                    # FastAPI app entry point, middleware
-│   ├── config.py                  # Cấu hình từ biến môi trường (pydantic-settings)
+│   ├── main.py                        # FastAPI entry point, khởi tạo DB + VectorDB
+│   ├── config.py                      # Cấu hình từ .env (pydantic-settings)
 │   ├── routes/
-│   │   └── webhook.py             # GET /webhook, POST /webhook, GET /health
+│   │   ├── webhook.py                 # GET/POST /webhook, GET /health
+│   │   └── test_chat.py               # POST /test/chat (test pipeline qua API)
+│   ├── ai/
+│   │   ├── pipeline.py                # Điều phối toàn bộ luồng xử lý tin nhắn
+│   │   ├── classification.py          # Phân loại: general / indomain
+│   │   ├── intent.py                  # Xác định intent: tu_van / bao_hanh / dat_hang
+│   │   ├── llm.py                     # Unified generate(), route sang Gemini hoặc OpenAI
+│   │   ├── gemini.py                  # Gemini API client (httpx + retry)
+│   │   ├── openai_client.py           # OpenAI API client (httpx + retry)
+│   │   ├── history.py                 # In-memory conversation history (5 turns/user)
+│   │   ├── prompt_template.py         # Tất cả prompt tập trung tại đây
+│   │   └── handlers/
+│   │       ├── general.py             # Trả lời chào hỏi, hội thoại thông thường
+│   │       ├── tu_van.py              # Tư vấn sản phẩm qua Vector DB + AI
+│   │       ├── bao_hanh.py            # Hỗ trợ bảo hành/đổi trả + notify Telegram
+│   │       └── dat_hang.py            # Xử lý đặt hàng: thu thập info → confirm → lưu DB
+│   ├── db/
+│   │   └── engine.py                  # SQLite: customers, products, orders, conversations
+│   ├── vectordb/
+│   │   └── store.py                   # ChromaDB local: load + search tài liệu tư vấn
 │   ├── services/
-│   │   ├── facebook_service.py    # Gửi tin nhắn qua Facebook Send API
-│   │   └── chatbot_service.py     # Gọi chatbot backend, xử lý fallback
+│   │   ├── facebook.py                # Gửi tin nhắn qua Facebook Send API
+│   │   └── telegram.py                # Gửi thông báo nội bộ qua Telegram Bot
 │   ├── schemas/
-│   │   └── facebook.py            # Pydantic models cho webhook payload
+│   │   └── facebook.py                # Pydantic models cho Facebook webhook payload
 │   └── utils/
-│       └── logging.py             # Setup logging, RequestTimingMiddleware
+│       └── logging.py                 # Setup logging, RequestTimingMiddleware
+├── data/
+│   ├── tu_van_docs.json               # Tài liệu tư vấn sản phẩm (load vào ChromaDB)
+│   └── bao_hanh_qa.json               # Q&A bảo hành/đổi trả
+├── test.py                            # Script test chatbot qua terminal
 ├── .env.example
-├── requirements.txt
-└── README.md
+└── requirements.txt
 ```
 
 ---
 
-## Cài dependencies
+## Luồng xử lý tin nhắn
+
+```
+Facebook Messenger
+      │ POST /webhook
+      ▼
+  webhook.py  ──── trả 200 ngay, xử lý async
+      │
+      ▼
+  pipeline.py
+      │
+      ├── get_history(sender_id)         ← lấy 5 tin nhắn gần nhất từ RAM
+      │
+      ├── classify(message, history)
+      │       ├── "general"  → general.handle()    ← chào hỏi, hội thoại thông thường
+      │       └── "indomain" → detect_intent()
+      │                           ├── "tu_van"    → tu_van.handle()
+      │                           ├── "bao_hanh"  → bao_hanh.handle()
+      │                           └── "dat_hang"  → dat_hang.handle()
+      │
+      ├── add_turn(sender_id, message, response)   ← cập nhật history
+      ├── save_conversation(...)                   ← lưu vào SQLite
+      │
+      ▼
+  facebook.py  ──── gửi response về Messenger
+```
+
+---
+
+## Luồng đặt hàng (dat_hang handler)
+
+```
+Khách nhắn muốn mua
+      │
+      ├── Extract thông tin từ message + history
+      │       Fields: tên, SĐT, địa chỉ, tên SP, màu, size, số lượng, phương thức TT
+      │
+      ├── Nếu thiếu field → hỏi lại
+      │
+      ├── Nếu đủ → lookup giá từ bảng products
+      │
+      ├── Hiển thị order summary → hỏi confirm
+      │
+      └── Khách xác nhận
+              ├── OK  → get_or_create_customer() → save_order() → notify Telegram
+              └── Hủy → xóa pending, không lưu
+```
+
+---
+
+## Database schema
+
+```sql
+-- Khách hàng (upsert theo SĐT)
+customers (customer_id PK, ten, sdt UNIQUE, dia_chi)
+
+-- Danh mục sản phẩm (staff tự thêm)
+products (product_id PK, ten_sp, mau, size, gia)
+
+-- Đơn hàng
+orders (
+    order_id PK, ngay, customer_id FK,
+    ten_sp, mau, size, gia, so_luong,
+    total GENERATED AS (so_luong * gia),
+    phuong_thuc CHECK('cod' | 'chuyen_khoan'),
+    luu_y
+)
+
+-- Doanh thu theo tháng (VIEW tự tính từ orders)
+monthly_revenue (nam, thang, so_don, tong_doanh_thu)
+
+-- Lịch sử hội thoại
+conversations (id PK, sender_id, raw_message, classification, intent, response_text, created_at)
+```
+
+Xem dữ liệu:
+```bash
+sqlite3 data/conversations.db "SELECT * FROM monthly_revenue;"
+```
+Hoặc dùng **DBeaver** / **TablePlus** → connect SQLite → chọn file `data/conversations.db`.
+
+---
+
+## Cài đặt
 
 ```bash
-# Tạo conda environment với Python 3.11
-conda create -n fb-webhook python=3.11 -y
-conda activate fb-webhook
-
+conda create -n luniva python=3.11 -y
+conda activate luniva
 pip install -r requirements.txt
 ```
 
 ---
 
-## Tạo file .env
+## Cấu hình .env
 
 ```bash
 cp .env.example .env
 ```
 
-Điền các giá trị thực vào `.env`:
+| Biến | Mô tả | Bắt buộc |
+|------|-------|----------|
+| `FB_VERIFY_TOKEN` | Token tự đặt để verify webhook | Có |
+| `FB_PAGE_ACCESS_TOKEN` | Page Access Token từ Meta Developer Portal | Có |
+| `AI_PROVIDER` | `gemini` hoặc `openai` | Có |
+| `GEMINI_API_KEY` | Google Gemini API key | Nếu dùng Gemini |
+| `GEMINI_MODEL` | Model Gemini, ví dụ `gemini-2.0-flash`, `gemma-3-27b-it` | Nếu dùng Gemini |
+| `OPENAI_API_KEY` | OpenAI API key | Nếu dùng OpenAI |
+| `OPENAI_MODEL` | Model OpenAI, ví dụ `gpt-4o-mini` | Nếu dùng OpenAI |
+| `TELEGRAM_BOT_TOKEN` | Token Telegram bot để nhận thông báo đơn hàng | Không (optional) |
+| `TELEGRAM_CHAT_ID` | Chat ID nhận thông báo Telegram | Không (optional) |
+| `DATABASE_PATH` | Đường dẫn SQLite, mặc định `data/conversations.db` | Không |
+| `VECTOR_DB_PATH` | Đường dẫn ChromaDB, mặc định `data/vectordb` | Không |
+| `AI_TIMEOUT` | Timeout gọi AI API (giây), mặc định `30` | Không |
+| `LOG_LEVEL` | `DEBUG` / `INFO` / `WARNING`, mặc định `INFO` | Không |
 
-| Biến | Mô tả |
-|------|-------|
-| `APP_HOST` | Host chạy server, mặc định `0.0.0.0` |
-| `APP_PORT` | Port chạy server, mặc định `8383` |
-| `FB_VERIFY_TOKEN` | Token tự đặt để verify webhook với Facebook |
-| `FB_PAGE_ACCESS_TOKEN` | Page Access Token lấy từ Meta Developer Portal |
-| `FB_GRAPH_API_VERSION` | Phiên bản Graph API, ví dụ `v21.0` |
-| `CHATBOT_API_URL` | URL endpoint chatbot backend nhận tin nhắn |
-| `CHATBOT_API_TIMEOUT` | Timeout (giây) khi gọi chatbot, mặc định `10` |
-| `LOG_LEVEL` | Mức log: `DEBUG`, `INFO`, `WARNING`, mặc định `INFO` |
+**Switch AI provider** chỉ cần đổi trong `.env`:
+```env
+AI_PROVIDER=openai   # hoặc gemini
+```
 
 ---
 
-## Chạy local
+## Chạy app
 
 ```bash
 uvicorn app.main:app --host 0.0.0.0 --port 8383 --reload
 ```
 
-Server sẽ khởi động tại `http://localhost:8383`.
+Khi khởi động app sẽ tự động:
+- Tạo các bảng SQLite nếu chưa có
+- Load tài liệu từ `data/tu_van_docs.json` vào ChromaDB (chỉ lần đầu)
 
 ---
 
-## Test GET /health
+## Test chatbot
 
+**Terminal interactive:**
 ```bash
-curl http://localhost:8383/health
+python test.py
 ```
 
-Kết quả mong đợi:
+```
+Luniva Studio Chatbot Test — gõ 'exit' để thoát
 
+Bạn: giày cao gót size 37 có không?
+[indomain] intent=tu_van
+Bot: ...
+```
+
+**Swagger UI:**
+```
+http://localhost:8383/docs
+```
+Vào `POST /test/chat` → nhập `sender_id` và `message`.
+
+**curl:**
+```bash
+curl -X POST http://localhost:8383/test/chat \
+  -H "Content-Type: application/json" \
+  -d '{"sender_id": "user_001", "message": "giày boots đen size 37 giá bao nhiêu?"}'
+```
+
+---
+
+## Cập nhật dữ liệu tư vấn
+
+Sửa file `data/tu_van_docs.json`:
 ```json
-{"status": "ok", "service": "fb-webhook"}
+[
+  {
+    "title": "Tên tài liệu",
+    "content": "Nội dung..."
+  }
+]
+```
+
+Sau đó xóa vectordb để load lại:
+```bash
+rm -rf data/vectordb
+# restart app
 ```
 
 ---
 
 ## Expose webhook bằng ngrok
 
-Facebook yêu cầu webhook URL phải là HTTPS public. Dùng ngrok để public local server:
-
-**1. Cài ngrok:** https://ngrok.com/download
-
-**2. Chạy ngrok:**
-
 ```bash
 ngrok http 8383
+# → https://abc123.ngrok-free.app
 ```
 
-Bạn sẽ thấy output dạng:
+Webhook URL: `https://abc123.ngrok-free.app/webhook`
 
-```
-Forwarding  https://abc123.ngrok-free.app -> http://localhost:8383
-```
-
-**3. Webhook URL của bạn là:**
-
-```
-https://abc123.ngrok-free.app/webhook
-```
-
-> **Lưu ý:** URL ngrok thay đổi mỗi lần restart (trừ khi dùng gói trả phí). Mỗi lần restart ngrok cần cập nhật lại webhook URL trên Meta Developer Portal.
+> URL thay đổi mỗi lần restart ngrok (free tier) → cần cập nhật lại trên Meta Developer Portal.
 
 ---
 
 ## Cấu hình webhook trên Meta Developer Portal
 
-### Bước 1 — Tạo Meta Developer App
-
-1. Vào [developers.facebook.com](https://developers.facebook.com) → đăng nhập bằng tài khoản Facebook
-2. Click **My Apps** → **Create App**
-3. Chọn use case → chọn **Other** → chọn loại app là **Business**
-   > **Lưu ý:** Phải chọn **Business**, không chọn Consumer. Business app dùng hệ thống Access Level (Standard vs Advanced) thay vì Development/Live toggle.
-4. Điền **App Display Name**, **Contact Email**, gắn Business Portfolio nếu có
-5. Click **Create App**
-
----
-
-### Bước 2 — Thêm Messenger Product
-
-1. Trong App Dashboard, tìm mục **Add Products** ở sidebar
-2. Tìm **Messenger** → click **Set Up**
-3. Messenger Platform settings console sẽ xuất hiện ở sidebar trái
-
----
-
-### Bước 3 — Kết nối Facebook Page với App
-
-> Bạn phải là **Admin** của Facebook Page.
-
-1. Trong Messenger settings, tìm mục **Access Tokens**
-2. Click **Add or Remove Pages** → cấp quyền cho Page của bạn
-3. Page sẽ xuất hiện trong danh sách
-
----
-
-### Bước 4 — Lấy Page Access Token (Never-expiring)
-
-1. Trong mục **Access Tokens**, click **Generate Token** bên cạnh Page của bạn
-2. **Copy ngay lập tức** — UI sẽ không lưu lại, mỗi lần mở lại sẽ generate token mới
-3. Paste vào file `.env`: `FB_PAGE_ACCESS_TOKEN=EAAxxxxxx...`
-4. Xác nhận token không hết hạn tại [Access Token Debugger](https://developers.facebook.com/tools/debug/accesstoken/) — cột **Expires** phải hiện **Never**
-
-> **Token bị invalidate khi:** admin thu hồi quyền app, đổi mật khẩu Facebook, hoặc app bị vô hiệu hóa.
-
----
-
-### Bước 5 — Expose local server bằng ngrok (làm trước khi cấu hình webhook)
-
-```bash
-# Cài ngrok (macOS)
-brew install ngrok
-
-# Đăng ký tài khoản miễn phí tại ngrok.com, lấy authtoken
-ngrok config add-authtoken <YOUR_AUTHTOKEN>
-
-# Chạy server local
-conda activate fb-webhook
-uvicorn app.main:app --host 0.0.0.0 --port 8383 --reload
-
-# Trong terminal khác, mở tunnel
-ngrok http 8383
-```
-
-ngrok sẽ hiện:
-```
-Forwarding  https://abc123.ngrok-free.app -> http://localhost:8383
-```
-
-Dùng URL `https://` đó làm Callback URL. Inspect request realtime tại `http://localhost:4040`.
-
-> **Lưu ý:** Free tier đổi URL mỗi lần restart ngrok → phải cập nhật lại Callback URL trên Meta mỗi lần.
-
----
-
-### Bước 6 — Cấu hình Webhook Callback URL
-
-1. Trong Messenger settings, tìm mục **Webhooks** → click **Setup Webhooks** (hoặc **Edit Callback URL**)
-2. Điền:
-   - **Callback URL:** `https://abc123.ngrok-free.app/webhook`
-   - **Verify Token:** giá trị `FB_VERIFY_TOKEN` trong file `.env`
-3. Click **Verify and Save**
-
-**Điều gì xảy ra khi click Verify:** Facebook gọi:
-```
-GET /webhook?hub.mode=subscribe&hub.verify_token=...&hub.challenge=1234567890
-```
-Server trả về đúng chuỗi `hub.challenge` → verify thành công.
-
----
-
-### Bước 7 — Subscribe Webhook Fields cho Page
-
-1. Trong mục **Webhooks**, tìm phần **"Add subscriptions to your page"**
-2. Chọn Page → click **Add Subscriptions**
-3. Tick các field sau:
-
-| Field | Bắt buộc | Mục đích |
-|-------|----------|----------|
-| `messages` | **Có** | Nhận tin nhắn text/media từ user |
-| `messaging_postbacks` | **Có** | Nhận click button/quick reply |
-| `messaging_optins` | Tùy chọn | Opt-in notification |
-| `messaging_referrals` | Tùy chọn | m.me link, ads |
-| `message_reads` | Tùy chọn | Xác nhận user đã đọc |
-
-**Tối thiểu cần tick:** `messages` và `messaging_postbacks`.
-
----
-
-### Bước 8 — Thêm Tester để test trước khi có Advanced Access
-
-Trong Standard Access, bot **chỉ hoạt động** với tài khoản có role trong app:
-
-1. App Dashboard → **App Roles** → **Roles**
-2. Click **Add Tester** → nhập tên Facebook của người test
-3. Người đó vào [developers.facebook.com](https://developers.facebook.com) → chấp nhận lời mời
-4. Tài khoản đó nhắn tin vào Page → bot reply bình thường
-
----
-
-### Bước 9 — Submit App Review để go live (Production)
-
-Khi muốn tất cả người dùng đều dùng được bot:
-
-1. App Dashboard → **App Review** → **Permissions and Features**
-2. Request **Advanced Access** cho các quyền:
-
-| Quyền | Mục đích |
-|-------|---------|
-| `pages_messaging` | Gửi/nhận tin nhắn Messenger |
-| `pages_manage_metadata` | Subscribe webhook, quản lý page settings |
-| `pages_read_engagement` | Đọc PSID, ảnh đại diện user |
-| `pages_show_list` | Xem danh sách pages do user quản lý |
-
-3. Chuẩn bị cho review:
-   - Screencast demo luồng đăng nhập + chức năng bot end-to-end
-   - Mô tả use case rõ ràng (customer support, e-commerce,...)
-   - Page phải ở trạng thái **Published** (không phải draft)
-   - Tuân thủ [Messenger Platform Policy](https://developers.facebook.com/docs/messenger-platform/policy) (quy tắc 24 giờ, opt-in,...)
-
----
-
-### Các lỗi phổ biến cần tránh
-
-| Vấn đề | Cách xử lý |
-|--------|-----------|
-| **Echo message loop** | Check `event.message.is_echo == True` và bỏ qua — code đã handle sẵn |
-| **Timeout 5 giây** | Facebook cần nhận `200 OK` trong vòng 5 giây. Code trả `200` ngay, xử lý async sau |
-| **Token bị mất** | Copy token ngay khi generate, UI không lưu lại |
-| **Self-signed cert** | Phải dùng TLS hợp lệ — ngrok đã xử lý sẵn cho local |
-| **PSID không phải global ID** | `sender.id` là Page-Scoped ID, chỉ dùng được với Page đó |
-| **Webhook bị disable** | Nếu server down >1 tiếng Meta tắt webhook — phải vào re-enable thủ công |
-| **URL ngrok thay đổi** | Mỗi lần restart ngrok phải cập nhật lại Callback URL trên Meta |
-
----
-
-### Checklist tổng hợp
-
-```
-[ ] Tạo Business app trên Meta Developer Portal
-[ ] Add Messenger product
-[ ] Kết nối Facebook Page (phải là Admin)
-[ ] Generate Page Access Token → copy ngay → lưu vào .env
-[ ] Kiểm tra token tại Access Token Debugger → Expires = Never
-[ ] Chạy server local + ngrok
-[ ] Cấu hình Callback URL + Verify Token → Verify and Save
-[ ] Subscribe webhook fields: messages, messaging_postbacks
-[ ] Thêm Tester roles cho tài khoản test
-[ ] Test end-to-end: nhắn tin vào Page → bot reply
-[ ] Submit Advanced Access cho 4 permissions để go live
-```
-
----
-
-## Ví dụ verify webhook (manual)
-
-Facebook sẽ gọi:
-
-```
-GET /webhook?hub.mode=subscribe&hub.verify_token=my_secret_verify_token&hub.challenge=1234567890
-```
-
-Service sẽ trả về chuỗi `1234567890` (giá trị challenge).
-
-Bạn có thể test thủ công:
-
-```bash
-curl "http://localhost:8383/webhook?hub.mode=subscribe&hub.verify_token=my_secret_verify_token&hub.challenge=test_challenge_123"
-```
-
----
-
-## Ví dụ payload Facebook gửi vào POST /webhook
-
-```json
-{
-  "object": "page",
-  "entry": [
-    {
-      "id": "PAGE_ID",
-      "time": 1705000000000,
-      "messaging": [
-        {
-          "sender": {"id": "USER_PSID"},
-          "recipient": {"id": "PAGE_ID"},
-          "timestamp": 1705000000000,
-          "message": {
-            "mid": "m_abc123",
-            "text": "Xin chào!"
-          }
-        }
-      ]
-    }
-  ]
-}
-```
-
----
-
-## Luồng xử lý
-
-```
-Facebook Messenger
-      │
-      ▼ POST /webhook
-  Webhook Route
-      │ parse payload
-      ▼
-  _handle_messaging_event
-      │ lấy sender_id + text
-      ▼
-  chatbot_service.get_reply()
-      │ POST {CHATBOT_API_URL}
-      ▼
-  facebook_service.send_message()
-      │ POST graph.facebook.com/.../messages
-      ▼
-  Người dùng nhận tin nhắn
-```
-
----
-
-## Chuẩn API chatbot backend
-
-Service này kỳ vọng chatbot backend của bạn nhận:
-
-```
-POST {CHATBOT_API_URL}
-Content-Type: application/json
-
-{
-  "message": "nội dung tin nhắn",
-  "user_id": "facebook_psid",
-  "channel": "facebook_messenger"
-}
-```
-
-Và trả về:
-
-```json
-{
-  "answer": "Câu trả lời từ chatbot"
-}
-```
-
-Nếu backend lỗi hoặc timeout, service sẽ tự động trả fallback:
-> *"Xin lỗi, hiện tại hệ thống đang bận. Bạn vui lòng thử lại sau ít phút nhé."*
+1. Vào [developers.facebook.com](https://developers.facebook.com) → **My Apps** → **Create App** → chọn **Business**
+2. Add product **Messenger** → **Set Up**
+3. **Access Tokens** → kết nối Facebook Page → **Generate Token** → copy vào `FB_PAGE_ACCESS_TOKEN`
+4. **Webhooks** → **Setup Webhooks**:
+   - Callback URL: `https://xxx.ngrok-free.app/webhook`
+   - Verify Token: giá trị `FB_VERIFY_TOKEN` trong `.env`
+5. Subscribe fields: tick `messages` và `messaging_postbacks`
+6. **App Roles** → **Add Tester** → thêm tài khoản test
+
+> Bot chỉ hoạt động với Tester trong Standard Access. Submit App Review để go live toàn bộ người dùng.
 
 ---
 
 ## Quyền Facebook cần có
 
-Trong Meta Developer Portal, App cần các quyền sau:
-
 | Quyền | Mục đích |
 |-------|---------|
-| `pages_messaging` | Gửi và nhận tin nhắn qua Messenger |
-| `pages_read_engagement` | Đọc thông tin tương tác trên Page |
-
-Để dùng app với người dùng ngoài nhóm test, cần submit app để Facebook review các quyền trên.
+| `pages_messaging` | Gửi/nhận tin nhắn Messenger |
+| `pages_manage_metadata` | Subscribe webhook |
+| `pages_read_engagement` | Đọc PSID người dùng |
 
 ---
 
-## Ghi chú
+## Lưu ý
 
-- Service luôn trả HTTP 200 cho Facebook dù có lỗi nội bộ, để tránh Facebook retry liên tục.
-- Echo messages (tin nhắn do chính Page gửi đi) sẽ bị bỏ qua tự động.
-- Retry tự động 1 lần cho lỗi timeout/connection khi gọi chatbot backend và Facebook Send API.
-- Log được in ra stdout theo format: `YYYY-MM-DD HH:MM:SS | LEVEL | module | message`
+- App luôn trả HTTP 200 cho Facebook ngay lập tức, xử lý tin nhắn async để tránh timeout 5 giây.
+- Echo messages (Page tự gửi) bị bỏ qua tự động.
+- Conversation history lưu trên RAM, mất khi restart app — đây là thiết kế cố ý cho stateless deployment.
+- Telegram notification là optional — nếu không điền token/chat_id thì tự động skip.
