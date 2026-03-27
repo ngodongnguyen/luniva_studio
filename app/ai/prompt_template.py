@@ -1,3 +1,10 @@
+CONFIRM_ORDER_PROMPT = """Khách hàng vừa được hiển thị thông tin đơn hàng và được hỏi xác nhận.
+Tin nhắn của khách: "{message}"
+
+Khách có đồng ý xác nhận đặt hàng không?
+Trả về JSON: {{"confirmed": true}} hoặc {{"confirmed": false}}
+Chỉ trả về JSON, không giải thích."""
+
 DAT_HANG_EXTRACT_PROMPT = """Từ lịch sử hội thoại và tin nhắn hiện tại, hãy trích xuất thông tin đặt hàng của khách.
 
 {history_block}Tin nhắn hiện tại: "{message}"
@@ -6,14 +13,19 @@ Trả về JSON với các trường sau:
 - "ten": tên người nhận (null nếu chưa có)
 - "sdt": số điện thoại (null nếu chưa có)
 - "dia_chi": địa chỉ giao hàng (null nếu chưa có)
+- "ten_sp": tên sản phẩm muốn mua (null nếu chưa có)
+- "mau": màu sản phẩm (null nếu không đề cập)
+- "size": size giày (null nếu không đề cập)
+- "so_luong": số lượng (mặc định 1 nếu không đề cập)
+- "phuong_thuc": phương thức thanh toán, chỉ là "cod" hoặc "chuyen_khoan" (null nếu chưa chọn)
 - "luu_y": lưu ý thêm (null nếu không có)
 - "muon_gap_tu_van": true nếu khách muốn gặp/nói chuyện với tư vấn viên/nhân viên, false nếu không
 
 Chỉ trả về JSON, không giải thích thêm."""
 
 CLASSIFICATION_PROMPT = """Phân loại tin nhắn sau vào MỘT trong hai nhóm:
-- "general": chào hỏi, tán gẫu, câu hỏi chung chung, không liên quan sản phẩm/dịch vụ
-- "indomain": liên quan sản phẩm, dịch vụ, tư vấn, bảo hành, đặt hàng, giá cả
+- "general": chào hỏi, tán gẫu, câu hỏi chung chung, không liên quan đến giày dép
+- "indomain": liên quan đến giày dép, dép, sandal, boots, sneaker, size giày, chất liệu, giá giày, đặt hàng giày, đổi trả giày, bảo hành giày
 
 {history_block}Tin nhắn hiện tại: "{message}"
 
