@@ -7,7 +7,7 @@ RESPONSE = (
 )
 
 
-async def handle(message: str, sender_id: str) -> str:
+async def handle(message: str, sender_id: str, history: list[dict]) -> str:
     await send_notification(
         f"🛒 <b>Yêu cầu đặt hàng</b>\n"
         f"👤 Sender: <code>{sender_id}</code>\n"

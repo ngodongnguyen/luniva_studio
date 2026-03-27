@@ -2,6 +2,7 @@ from dataclasses import dataclass
 
 from app.ai.classification import classify
 from app.ai.handlers import bao_hanh, dat_hang, general, tu_van
+from app.ai.history import add_turn, get_history
 from app.ai.intent import detect_intent
 from app.db.engine import save_conversation
 from app.utils.logging import get_logger
@@ -31,16 +32,17 @@ async def process(sender_id: str, message: str) -> PipelineResult:
     classification = "general"
     intent = None
     response = FALLBACK
+    history = get_history(sender_id)
 
     try:
-        classification = await classify(message)
+        classification = await classify(message, history)
 
         if classification == "general":
-            response = await general.handle(message, sender_id)
+            response = await general.handle(message, sender_id, history)
         else:
-            intent = await detect_intent(message)
+            intent = await detect_intent(message, history)
             handler = _INTENT_HANDLERS.get(intent, tu_van.handle)
-            response = await handler(message, sender_id)
+            response = await handler(message, sender_id, history)
 
         if not response:
             response = FALLBACK
@@ -49,6 +51,7 @@ async def process(sender_id: str, message: str) -> PipelineResult:
         logger.exception("Pipeline error | sender_id=%s", sender_id)
         response = FALLBACK
 
+    add_turn(sender_id, message, response)
     await save_conversation(sender_id, message, classification, intent, response)
 
     logger.info(
