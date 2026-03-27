@@ -12,34 +12,108 @@ logger = get_logger(__name__)
 async def init_db() -> None:
     os.makedirs(os.path.dirname(settings.database_path), exist_ok=True)
     async with aiosqlite.connect(settings.database_path) as db:
-        await db.execute(
+        await db.executescript(
             """
-            CREATE TABLE IF NOT EXISTS conversations (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sender_id TEXT NOT NULL,
-                raw_message TEXT NOT NULL,
-                classification TEXT NOT NULL,
-                intent TEXT,
-                response_text TEXT NOT NULL,
-                created_at TEXT NOT NULL
-            )
-            """
-        )
-        await db.execute(
-            """
+            CREATE TABLE IF NOT EXISTS customers (
+                customer_id INTEGER PRIMARY KEY AUTOINCREMENT,
+                ten         TEXT NOT NULL,
+                sdt         TEXT NOT NULL UNIQUE,
+                dia_chi     TEXT NOT NULL
+            );
+
+            CREATE TABLE IF NOT EXISTS products (
+                product_id  INTEGER PRIMARY KEY AUTOINCREMENT,
+                ten_sp      TEXT NOT NULL,
+                mau         TEXT,
+                size        TEXT,
+                gia         REAL NOT NULL DEFAULT 0
+            );
+
             CREATE TABLE IF NOT EXISTS orders (
-                id INTEGER PRIMARY KEY AUTOINCREMENT,
-                sender_id TEXT NOT NULL,
-                ten TEXT NOT NULL,
-                sdt TEXT NOT NULL,
-                dia_chi TEXT NOT NULL,
-                luu_y TEXT,
-                created_at TEXT NOT NULL
-            )
+                order_id        INTEGER PRIMARY KEY AUTOINCREMENT,
+                ngay            TEXT NOT NULL,
+                customer_id     INTEGER NOT NULL REFERENCES customers(customer_id),
+                ten_sp          TEXT NOT NULL,
+                mau             TEXT,
+                size            TEXT,
+                gia             REAL NOT NULL DEFAULT 0,
+                so_luong        INTEGER NOT NULL DEFAULT 1,
+                total           REAL GENERATED ALWAYS AS (so_luong * gia) STORED,
+                phuong_thuc     TEXT NOT NULL DEFAULT 'cod' CHECK(phuong_thuc IN ('cod', 'chuyen_khoan')),
+                luu_y           TEXT
+            );
+
+            CREATE VIEW IF NOT EXISTS monthly_revenue AS
+            SELECT
+                strftime('%Y', ngay) AS nam,
+                strftime('%m', ngay) AS thang,
+                COUNT(order_id)      AS so_don,
+                SUM(total)           AS tong_doanh_thu
+            FROM orders
+            GROUP BY nam, thang
+            ORDER BY nam DESC, thang DESC;
+
+            CREATE TABLE IF NOT EXISTS conversations (
+                id              INTEGER PRIMARY KEY AUTOINCREMENT,
+                sender_id       TEXT NOT NULL,
+                raw_message     TEXT NOT NULL,
+                classification  TEXT NOT NULL,
+                intent          TEXT,
+                response_text   TEXT NOT NULL,
+                created_at      TEXT NOT NULL
+            );
             """
         )
         await db.commit()
     logger.info("Database initialized | path=%s", settings.database_path)
+
+
+async def get_or_create_customer(ten: str, sdt: str, dia_chi: str) -> int:
+    async with aiosqlite.connect(settings.database_path) as db:
+        async with db.execute(
+            "SELECT customer_id FROM customers WHERE sdt = ?", (sdt,)
+        ) as cursor:
+            row = await cursor.fetchone()
+
+        if row:
+            customer_id = row[0]
+            await db.execute(
+                "UPDATE customers SET ten = ?, dia_chi = ? WHERE customer_id = ?",
+                (ten, dia_chi, customer_id),
+            )
+        else:
+            async with db.execute(
+                "INSERT INTO customers (ten, sdt, dia_chi) VALUES (?, ?, ?)",
+                (ten, sdt, dia_chi),
+            ) as cursor:
+                customer_id = cursor.lastrowid
+
+        await db.commit()
+    logger.info("Customer upserted | customer_id=%s sdt=%s", customer_id, sdt)
+    return customer_id
+
+
+async def save_order(
+    customer_id: int,
+    ten_sp: str,
+    mau: str | None,
+    size: str | None,
+    gia: float,
+    so_luong: int,
+    phuong_thuc: str,
+    luu_y: str | None,
+) -> int:
+    ngay = datetime.now(timezone.utc).isoformat()
+    async with aiosqlite.connect(settings.database_path) as db:
+        async with db.execute(
+            "INSERT INTO orders (ngay, customer_id, ten_sp, mau, size, gia, so_luong, phuong_thuc, luu_y) "
+            "VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?)",
+            (ngay, customer_id, ten_sp, mau, size, gia, so_luong, phuong_thuc, luu_y),
+        ) as cursor:
+            order_id = cursor.lastrowid
+        await db.commit()
+    logger.info("Order saved | order_id=%s customer_id=%s ten_sp=%s", order_id, customer_id, ten_sp)
+    return order_id
 
 
 async def save_conversation(
@@ -51,8 +125,7 @@ async def save_conversation(
 ) -> None:
     async with aiosqlite.connect(settings.database_path) as db:
         await db.execute(
-            "INSERT INTO conversations "
-            "(sender_id, raw_message, classification, intent, response_text, created_at) "
+            "INSERT INTO conversations (sender_id, raw_message, classification, intent, response_text, created_at) "
             "VALUES (?, ?, ?, ?, ?, ?)",
             (
                 sender_id,
@@ -65,19 +138,3 @@ async def save_conversation(
         )
         await db.commit()
     logger.info("Conversation saved | sender_id=%s classification=%s intent=%s", sender_id, classification, intent)
-
-
-async def save_order(
-    sender_id: str,
-    ten: str,
-    sdt: str,
-    dia_chi: str,
-    luu_y: str | None,
-) -> None:
-    async with aiosqlite.connect(settings.database_path) as db:
-        await db.execute(
-            "INSERT INTO orders (sender_id, ten, sdt, dia_chi, luu_y, created_at) VALUES (?, ?, ?, ?, ?, ?)",
-            (sender_id, ten, sdt, dia_chi, luu_y, datetime.now(timezone.utc).isoformat()),
-        )
-        await db.commit()
-    logger.info("Order saved | sender_id=%s ten=%s sdt=%s", sender_id, ten, sdt)

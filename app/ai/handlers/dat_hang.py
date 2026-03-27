@@ -3,17 +3,16 @@ import json
 from app.ai.llm import generate
 from app.ai.history import format_history
 from app.ai.prompt_template import DAT_HANG_EXTRACT_PROMPT
-from app.db.engine import save_order
+from app.db.engine import get_or_create_customer, save_order
 from app.services.telegram import send_notification
 from app.utils.logging import get_logger
 
 logger = get_logger(__name__)
 
-MISSING_MESSAGES = {
-    "ten": "tên người nhận",
-    "sdt": "số điện thoại",
-    "dia_chi": "địa chỉ giao hàng",
-}
+REQUIRED_CUSTOMER = {"ten": "tên người nhận", "sdt": "số điện thoại", "dia_chi": "địa chỉ giao hàng"}
+REQUIRED_ORDER = {"ten_sp": "tên sản phẩm", "phuong_thuc": "phương thức thanh toán (COD hay chuyển khoản)"}
+
+PAYMENT_LABELS = {"cod": "COD (thanh toán khi nhận hàng)", "chuyen_khoan": "Chuyển khoản"}
 
 
 async def _extract_order_info(message: str, history: list[dict]) -> dict:
@@ -42,7 +41,8 @@ async def handle(message: str, sender_id: str, history: list[dict]) -> str:
         return "Xin vui lòng đợi trong ít phút, tư vấn viên sẽ liên hệ lại với bạn ngay nhé! 🥰"
 
     # Kiểm tra thông tin còn thiếu
-    missing = [label for field, label in MISSING_MESSAGES.items() if not info.get(field)]
+    all_required = {**REQUIRED_CUSTOMER, **REQUIRED_ORDER}
+    missing = [label for field, label in all_required.items() if not info.get(field)]
 
     if missing:
         missing_text = ", ".join(missing)
@@ -52,21 +52,37 @@ async def handle(message: str, sender_id: str, history: list[dict]) -> str:
             f"**{missing_text}** nhé!"
         )
 
-    # Đủ thông tin → lưu DB, notify Telegram và xác nhận
-    luu_y = info.get("luu_y") or "Không có"
-    await save_order(
-        sender_id=sender_id,
+    # Đủ thông tin → lưu DB và notify Telegram
+    customer_id = await get_or_create_customer(
         ten=info["ten"],
         sdt=info["sdt"],
         dia_chi=info["dia_chi"],
+    )
+    await save_order(
+        customer_id=customer_id,
+        ten_sp=info["ten_sp"],
+        mau=info.get("mau"),
+        size=info.get("size"),
+        gia=0,  # staff cập nhật giá sau
+        so_luong=info.get("so_luong") or 1,
+        phuong_thuc=info["phuong_thuc"],
         luu_y=info.get("luu_y"),
     )
+
+    payment_label = PAYMENT_LABELS.get(info["phuong_thuc"], info["phuong_thuc"])
+    luu_y = info.get("luu_y") or "Không có"
+
     await send_notification(
         f"🛒 <b>Đơn hàng mới</b>\n"
         f"👤 Sender: <code>{sender_id}</code>\n"
         f"🙍 Tên: {info['ten']}\n"
         f"📞 SĐT: {info['sdt']}\n"
         f"📍 Địa chỉ: {info['dia_chi']}\n"
+        f"👟 Sản phẩm: {info['ten_sp']}"
+        + (f" | Màu: {info['mau']}" if info.get("mau") else "")
+        + (f" | Size: {info['size']}" if info.get("size") else "")
+        + f"\n📦 Số lượng: {info.get('so_luong') or 1}\n"
+        f"💳 Thanh toán: {payment_label}\n"
         f"📝 Lưu ý: {luu_y}"
     )
 
@@ -76,6 +92,11 @@ async def handle(message: str, sender_id: str, history: list[dict]) -> str:
         f"• Tên: {info['ten']}\n"
         f"• SĐT: {info['sdt']}\n"
         f"• Địa chỉ: {info['dia_chi']}\n"
+        f"• Sản phẩm: {info['ten_sp']}"
+        + (f" | Màu: {info['mau']}" if info.get("mau") else "")
+        + (f" | Size: {info['size']}" if info.get("size") else "")
+        + f"\n• Số lượng: {info.get('so_luong') or 1}\n"
+        f"• Thanh toán: {payment_label}\n"
         f"• Lưu ý: {luu_y}\n\n"
-        f"Nhân viên sẽ liên hệ xác nhận lại với bạn trong thời gian sớm nhất nhé! 💕"
+        f"Nhân viên sẽ liên hệ xác nhận lại với bạn sớm nhất nhé! 💕"
     )

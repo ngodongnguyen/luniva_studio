@@ -6,6 +6,11 @@ Trả về JSON với các trường sau:
 - "ten": tên người nhận (null nếu chưa có)
 - "sdt": số điện thoại (null nếu chưa có)
 - "dia_chi": địa chỉ giao hàng (null nếu chưa có)
+- "ten_sp": tên sản phẩm muốn mua (null nếu chưa có)
+- "mau": màu sản phẩm (null nếu không đề cập)
+- "size": size giày (null nếu không đề cập)
+- "so_luong": số lượng (mặc định 1 nếu không đề cập)
+- "phuong_thuc": phương thức thanh toán, chỉ là "cod" hoặc "chuyen_khoan" (null nếu chưa chọn)
 - "luu_y": lưu ý thêm (null nếu không có)
 - "muon_gap_tu_van": true nếu khách muốn gặp/nói chuyện với tư vấn viên/nhân viên, false nếu không
 
