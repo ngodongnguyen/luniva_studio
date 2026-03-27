@@ -1,2 +1,6 @@
 .env
 .claude/
+__pycache__/
+*.pyc
+data/vectordb/
+data/conversations.db
