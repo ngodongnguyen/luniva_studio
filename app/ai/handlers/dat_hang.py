@@ -38,10 +38,7 @@ async def handle(message: str, sender_id: str, history: list[dict]) -> str:
             f"👤 Sender: <code>{sender_id}</code>\n"
             f"💬 Tin nhắn: {message}"
         )
-        return (
-            "Dạ, em đã nhắn cho tư vấn viên rồi ạ! "
-            "Bạn vui lòng chờ một chút, nhân viên sẽ liên hệ lại với bạn sớm nhé 🥰"
-        )
+        return "Xin vui lòng đợi trong ít phút, tư vấn viên sẽ liên hệ lại với bạn ngay nhé! 🥰"
 
     # Kiểm tra thông tin còn thiếu
     missing = [label for field, label in MISSING_MESSAGES.items() if not info.get(field)]
